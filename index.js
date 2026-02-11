@@ -1,98 +1,100 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
-  Partials, 
-  EmbedBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
   ActionRowBuilder,
-  Events 
+  ButtonBuilder,
+  ButtonStyle,
+  Events
 } = require("discord.js");
 
 const fs = require("fs");
+
+const TOKEN = "ISI_TOKEN_BOT_KAMU_DISINI";
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.DirectMessages
   ],
   partials: [Partials.Channel]
 });
 
-const TOKEN = process.env.TOKEN;
+const QRIS_IMAGE = "https://raw.githubusercontent.com/lmore000022-a11y/auto-order/main/qris.png";
+const PRICE = "Rp40.000";
 
 client.once("ready", () => {
-  console.log(`Bot aktif sebagai ${client.user.tag}`);
+  console.log(`Bot login sebagai ${client.user.tag}`);
 });
 
-client.on(Events.InteractionCreate, async interaction => {
-
-  // SLASH COMMAND PANEL
-  if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === "panel") {
-
-      const embed = new EmbedBuilder()
-        .setTitle("🛒 BUY AKUN GTA 5 RP ANDROID")
-        .setDescription("Harga: **Rp40.000 (QRIS GoPay)**\nKlik tombol di bawah untuk membeli.")
-        .setColor("Green");
-
-      const button = new ButtonBuilder()
+client.on(Events.MessageCreate, async (message) => {
+  if (message.content === "!panel") {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
         .setCustomId("buy")
-        .setLabel("BUY 40K")
-        .setStyle(ButtonStyle.Success);
+        .setLabel("BUY AKUN")
+        .setStyle(ButtonStyle.Success)
+    );
 
-      const row = new ActionRowBuilder().addComponents(button);
+    message.channel.send({
+      content: "Klik tombol untuk membeli akun GTA5 Roleplay Android",
+      components: [row]
+    });
+  }
+});
 
-      await interaction.reply({ embeds: [embed], components: [row] });
-    }
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  // BUY BUTTON
+  if (interaction.customId === "buy") {
+    const confirmRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("paid")
+        .setLabel("SUDAH BAYAR")
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await interaction.reply({
+      content: "📩 Cek DM untuk pembayaran.",
+      ephemeral: true
+    });
+
+    await interaction.user.send({
+      content: `Silakan scan QRIS berikut untuk pembayaran ${PRICE}`,
+      files: [QRIS_IMAGE],
+      components: [confirmRow]
+    });
   }
 
-  // BUTTON BUY
-  if (interaction.isButton()) {
+  // PAID BUTTON
+  if (interaction.customId === "paid") {
+    const accountsFile = fs.readFileSync("accounts.txt", "utf-8");
+    const accounts = accountsFile.split("\n").filter(a => a.trim() !== "");
 
-    if (interaction.customId === "buy") {
-
-      const embed = new EmbedBuilder()
-        .setTitle("💳 Pembayaran QRIS")
-        .setDescription("Silakan transfer **Rp40.000** ke QRIS di bawah.\n\nSetelah transfer, tunggu admin konfirmasi.")
-        .setImage("LINK_GAMBAR_QRIS_KAMU")
-        .setColor("Blue");
-
-      const confirmButton = new ButtonBuilder()
-        .setCustomId("confirm")
-        .setLabel("CONFIRM (ADMIN)")
-        .setStyle(ButtonStyle.Primary);
-
-      const row = new ActionRowBuilder().addComponents(confirmButton);
-
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    if (accounts.length === 0) {
+      return interaction.reply({
+        content: "❌ Stok habis.",
+        ephemeral: true
+      });
     }
 
-    // ADMIN CONFIRM
-    if (interaction.customId === "confirm") {
+    const account = accounts[0];
+    accounts.shift();
 
-      const file = fs.readFileSync("./accounts.txt", "utf-8").split("\n").filter(Boolean);
+    fs.writeFileSync("accounts.txt", accounts.join("\n"));
 
-      if (file.length === 0) {
-        return interaction.reply({ content: "Stok habis!", ephemeral: true });
-      }
+    await interaction.reply({
+      content: "✅ Pembayaran dikonfirmasi!",
+      ephemeral: true
+    });
 
-      const account = file.shift(); // ambil akun pertama
-      fs.writeFileSync("./accounts.txt", file.join("\n"));
-
-      try {
-        await interaction.user.send(`🎉 Pembayaran dikonfirmasi!\n\nBerikut akun kamu:\n\n${account}`);
-      } catch {
-        return interaction.reply({ content: "Gagal DM user!", ephemeral: true });
-      }
-
-      await interaction.reply({ content: "Akun berhasil dikirim ke DM pembeli!", ephemeral: true });
-    }
-
+    await interaction.user.send({
+      content: `🎉 Berikut akun kamu:\n\n${account}\n\nJangan dibagikan ke siapa pun.`
+    });
   }
-
 });
 
 client.login(TOKEN);
