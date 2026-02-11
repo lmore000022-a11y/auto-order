@@ -5,12 +5,19 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  Events
+  Events,
+  PermissionsBitField
 } = require("discord.js");
 
 const fs = require("fs");
 
 const TOKEN = process.env.TOKEN;
+
+const CHANNEL_PANEL_ID = "#auto-pembayaran"; 
+const KONFIRM_CHANNEL_ID = "#konfirmasi-pembayaran";
+
+const QRIS_IMAGE = "https://raw.githubusercontent.com/lmore000022-a11y/auto-order/main/qris.png";
+const PRICE = "Rp40.000";
 
 const client = new Client({
   intents: [
@@ -22,27 +29,22 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-const QRIS_IMAGE = "https://raw.githubusercontent.com/lmore000022-a11y/auto-order/main/qris.png";
-const PRICE = "Rp40.000";
-
-client.once("ready", () => {
+client.once("clientReady", async () => {
   console.log(`Bot login sebagai ${client.user.tag}`);
-});
 
-client.on(Events.MessageCreate, async (message) => {
-  if (message.content === "!panel") {
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("buy")
-        .setLabel("BUY AKUN")
-        .setStyle(ButtonStyle.Success)
-    );
+  const channel = await client.channels.fetch(CHANNEL_PANEL_ID);
 
-    message.channel.send({
-      content: "Klik tombol untuk membeli akun GTA5 Roleplay Android",
-      components: [row]
-    });
-  }
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("buy")
+      .setLabel("BUY AKUN")
+      .setStyle(ButtonStyle.Success)
+  );
+
+  await channel.send({
+    content: "🛒 **AUTO ORDER GTA 5 ROLEPLAY ANDROID**\nKlik tombol di bawah untuk membeli akun.",
+    components: [row]
+  });
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -50,12 +52,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   // BUY BUTTON
   if (interaction.customId === "buy") {
-    const confirmRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("paid")
-        .setLabel("SUDAH BAYAR")
-        .setStyle(ButtonStyle.Primary)
-    );
 
     await interaction.reply({
       content: "📩 Cek DM untuk pembayaran.",
@@ -63,14 +59,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
     });
 
     await interaction.user.send({
-      content: `Silakan scan QRIS berikut untuk pembayaran ${PRICE}`,
-      files: [QRIS_IMAGE],
-      components: [confirmRow]
+      content: `Silakan scan QRIS berikut untuk pembayaran ${PRICE}\n\nSetelah transfer, kirim bukti pembayaran di channel <#${KONFIRM_CHANNEL_ID}>.`,
+      files: [QRIS_IMAGE]
     });
   }
 
-  // PAID BUTTON
-  if (interaction.customId === "paid") {
+  // ADMIN CONFIRM BUTTON
+  if (interaction.customId.startsWith("confirm_")) {
+
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return interaction.reply({
+        content: "❌ Hanya admin yang bisa konfirmasi.",
+        ephemeral: true
+      });
+    }
+
+    const userId = interaction.customId.split("_")[1];
+    const user = await client.users.fetch(userId);
+
     const accountsFile = fs.readFileSync("accounts.txt", "utf-8");
     const accounts = accountsFile.split("\n").filter(a => a.trim() !== "");
 
@@ -83,16 +89,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const account = accounts[0];
     accounts.shift();
-
     fs.writeFileSync("accounts.txt", accounts.join("\n"));
 
-    await interaction.reply({
-      content: "✅ Pembayaran dikonfirmasi!",
-      ephemeral: true
+    await user.send({
+      content: `🎉 Pembayaran dikonfirmasi!\n\nBerikut akun kamu:\n\n${account}\n\nJangan dibagikan ke siapa pun.`
     });
 
-    await interaction.user.send({
-      content: `🎉 Berikut akun kamu:\n\n${account}\n\nJangan dibagikan ke siapa pun.`
+    await interaction.reply({
+      content: "✅ Akun berhasil dikirim ke pembeli.",
+      ephemeral: true
+    });
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+
+  if (message.channel.id === KONFIRM_CHANNEL_ID && !message.author.bot) {
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`confirm_${message.author.id}`)
+        .setLabel("KONFIRM PEMBAYARAN")
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await message.reply({
+      content: `🔔 @here Admin, pembeli <@${message.author.id}> mengirim bukti pembayaran.`,
+      components: [row]
     });
   }
 });
