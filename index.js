@@ -10,7 +10,7 @@ const {
 
 const fs = require("fs");
 
-const TOKEN = "ISI_TOKEN_BOT_KAMU_DISINI";
+const TOKEN = process.env.TOKEN;
 
 const client = new Client({
   intents: [
